@@ -1,3 +1,4 @@
+import Buffer "mo:base/Buffer";
 import Debug "mo:base/Debug";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
@@ -25,21 +26,24 @@ let success = run([
             it(
                 "(test name)",
                 do {
-                    let cache = LRUCache.LRUCache<Nat, Text>(10, Nat32.fromNat, Nat.equal);
-                    cache.put(1, "one");
-                    cache.put(2, "two");
-                    cache.put(3, "three");
-                    cache.put(4, "four");
-                    cache.put(5, "five");
-                    cache.put(6, "six");
-                    cache.put(7, "seven");
-                    cache.put(8, "eight");
-                    cache.put(9, "nine");
-                    cache.put(10, "ten");
+                    let cache = LRUCache.LRUCache<Nat, Text>(3, Nat32.fromNat, Nat.equal);
+                    let evicted = Buffer.Buffer<(Nat, Text)>(1);
+                    cache.setOnEvict(evicted.add);
 
-                    let arr = Iter.toArray(cache.vals());                    
-                    Debug.print(debug_show arr);
-                    assertTrue(arr == ["three", "two", "one"]);
+                    ignore cache.replace(1, "one");
+                    ignore cache.replace(2, "two");
+                    ignore cache.replace(3, "three");
+
+                    assert cache.replace(2, "TWO") == ?"two";
+                    assert cache.replace(1, "ONE") == ?"one";
+
+                    cache.put(6, "six");
+
+                    let arr = Iter.toArray(cache.entries());
+                    assertAllTrue([
+                        arr == [(6, "six"), (1, "ONE"), (2, "TWO")],
+                        Buffer.toArray(evicted) == [(3, "three")],
+                    ]);
                 },
             ),
         ],

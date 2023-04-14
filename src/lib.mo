@@ -5,7 +5,7 @@ import TrieMap "mo:base/TrieMap";
 
 module {
     private module Node = {
-        public class Node<K, V>(init_key: K, init_val : V) {
+        public class Node<K, V>(init_key : K, init_val : V) {
             public var key : K = init_key;
             public var val : V = init_val;
 
@@ -13,15 +13,9 @@ module {
             public var next : ?Node<K, V> = null;
         };
 
-        public func insert<K, V>(ref : Node<K, V>, node : Node<K, V>) {
-            node.next := ref.next;
-            node.prev := ?ref;
-
-            ignore do ? {
-                ref.next!.prev := ?node;
-            };
-
-            ref.next := ?node;
+        public func prepend<K, V>(ref : Node<K, V>, node : Node<K, V>) {
+            node.next := ?ref;
+            ref.prev := ?node;
         };
 
         public func remove<K, V>(node : Node<K, V>) {
@@ -32,6 +26,9 @@ module {
             ignore do ? {
                 node.next!.prev := node.prev;
             };
+
+            node.prev := null;
+            node.next := null;
         };
     };
 
@@ -48,30 +45,51 @@ module {
         var map : TrieMap<K, Node<K, V>> = TrieMap.TrieMap(isEq, hash);
         var head : ?Node<K, V> = null;
         var tail : ?Node<K, V> = null;
+        
+        var evictItemFn : ?(((K, V)) -> ()) = null;
 
-        var evictItemFn : ?((K, V) -> ()) = null;
-
-        func moveToFront(node : Node<K, V>) {
-            Node.remove(node);
+        func moveToFront(node : Node<K, V>) = ignore do ? {
+            if (isEq(node.key, head!.key)) {
+                return;
+            };
+            
+            removeNode(node);
 
             ignore do ? {
-                Node.insert(node, head!);
+                Node.prepend(head!, node);
             };
 
             head := ?node;
         };
 
         func prependNode(node : Node<K, V>) {
-            switch(tail){
-                case (null) tail := head;
-                case (_) ();
+
+            if (Option.isNull(head)){
+                head := ?node;
+                tail := head;
+                return;
             };
 
-            ignore do?{
-                Node.insert(node, head!);
+            ignore do ? {
+                Node.prepend(head!, node);
             };
 
             head := ?node;
+        };
+
+        func removeNode(node : Node<K, V>) {
+
+            ignore do ?{
+                if (isEq(node.key, head!.key)) {
+                    head := node.next;
+                };
+
+                if (isEq(node.key, tail!.key)) {
+                    tail := node.prev;
+                };
+            };
+
+            Node.remove(node);
         };
 
         /// Returns the number of items in the cache.
@@ -81,7 +99,7 @@ module {
         public func capacity() : Nat = _capacity;
 
         /// Set a function to be called when an item is evicted from the cache by a put or replace.
-        public func setOnEvict(fn: (K, V) -> ()) {
+        public func setOnEvict(fn : ((K, V)) -> ()) {
             evictItemFn := ?fn;
         };
 
@@ -101,60 +119,87 @@ module {
         /// Remove the value associated with a key from the cache.
         public func remove(key : K) : ?V = do ? {
             let node = map.remove(key)!;
-            Node.remove(node);
+            removeNode(node);
             return ?node.val;
         };
 
         public func delete(key : K) = ignore remove(key);
 
-        /// Pop the least recently used item from the cache.
-        public func pop() : ?(K, V){
-            let popped_node = switch(tail, head){
-                case (?node, _) {
-                    tail := node.prev;
-                    ignore do ? {
-                        tail!.next := null;
-                    };
-                    node;
-                };
-                case (null, ?node) {
-                    head := null;
-                    node;
-                };
-                case (null, null) return null;
-            };
+        /// Get the most recently used item from the cache.
+        public func first() : ?(K, V) = do ? {
+            let node = head!;
+            return ?(node.key, node.val);
+        };
 
-            ignore map.remove(popped_node.key);
-            ?(popped_node.key, popped_node.val);
+        /// Get the least recently used item from the cache.
+        public func last() : ?(K, V) = do ? {
+            let node = tail!;
+            (node.key, node.val);
+        };
+
+        /// Pop the least recently used item from the cache.
+        public func pop() : ?(K, V) = do ? {
+            let popped_entry = last()!;
+            let node = map.remove(popped_entry.0)!;
+            removeNode(node);
+            popped_entry;
+        };
+
+        // Creates space in the cache for a new item.
+        func evictIfNeeded() : ?Node<K, V> {
+            if (map.size() >= _capacity) {
+
+                let ?(last_key, _) = last() else return null;
+                let ?node = map.remove(last_key) else Debug.trap("LRUCache internal error: item in linked list not found in map");
+
+                removeNode(node);
+                ignore do ? {
+                    evictItemFn!((node.key, node.val));
+                };
+
+                ?node;
+            } else {
+                null;
+            };
+        };
+
+        func createNode(key : K, value : V) : Node<K, V> {
+            switch (evictIfNeeded()) {
+                case (?popped_node) {
+                    popped_node.key := key;
+                    popped_node.val := value;
+                    popped_node;
+                };
+                case (null) {
+                    if (map.size() >= _capacity ) {
+                        Debug.trap("LRUCache internal error: evictIfNeeded did not evict the expected item");
+                    };
+
+                    Node.Node<K, V>(key, value)
+                };
+            };
         };
 
         /// Replace the value associated with a key in the cache.
         public func replace(key : K, value : V) : ?V {
-            var prev_data :?V = null;
 
-            let node : Node<K, V> = switch (map.get(key)) {
+            if (_capacity == 0) return null;
+
+            switch (map.get(key)) {
                 case (?node) {
-                    prev_data := ?node.val;
+                    let prev_data = ?node.val;
                     node.val := value;
                     moveToFront(node);
-                    node;
+                    return prev_data;
                 };
-                case (null) {
-                    if (map.size() >= _capacity) {
-                        ignore do?{ 
-                            let (popped_key, popped_val) = pop()!;
-                            evictItemFn!(popped_key, popped_val);
-                        };
-                    };
-
-                    let n : Node<K, V> = Node.Node(key, value);
-                    map.put(key, n);
-                    prependNode(n);
-                    n;
-                };
+                case (null) {};
             };
 
-            prev_data
+            let node = createNode(key, value);
+            map.put(key, node);
+            prependNode(node);
+
+            null;
         };
 
         /// Add a key-value pair to the cache.
@@ -182,18 +227,30 @@ module {
             };
         };
 
+        public func entriesRev() : Iter<(K, V)> {
+            var curr = tail;
+
+            object {
+                public func next() : ?(K, V) = do ? {
+                    let node = curr!;
+                    curr := node.prev;
+                    return ?(node.key, node.val);
+                };
+            };
+        };
+
         public func keys() : Iter<K> {
             Iter.map(
                 entries(),
-                func ((key, _) : (K, V)) : K  = key
-            )
+                func((key, _) : (K, V)) : K = key,
+            );
         };
 
         public func vals() : Iter<V> {
             Iter.map(
                 entries(),
-                func ((_, val) : (K, V)) : V  = val
-            )
+                func((_, val) : (K, V)) : V = val,
+            );
         };
 
     };
