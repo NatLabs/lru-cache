@@ -1,10 +1,11 @@
 import Debug "mo:base/Debug";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
+import Nat32 "mo:base/Nat32";
 
 import ActorSpec "./utils/ActorSpec";
 
-import Lib "../src/";
+import LRUCache "../src/";
 
 let {
     assertTrue;
@@ -19,12 +20,26 @@ let {
 
 let success = run([
     describe(
-        " (Function Name) ",
+        "LRU Cache",
         [
             it(
                 "(test name)",
                 do {
-                    assertTrue(true);
+                    let cache = LRUCache.LRUCache<Nat, Text>(10, Nat32.fromNat, Nat.equal);
+                    cache.put(1, "one");
+                    cache.put(2, "two");
+                    cache.put(3, "three");
+                    cache.put(4, "four");
+                    cache.put(5, "five");
+                    cache.put(6, "six");
+                    cache.put(7, "seven");
+                    cache.put(8, "eight");
+                    cache.put(9, "nine");
+                    cache.put(10, "ten");
+
+                    let arr = Iter.toArray(cache.vals());                    
+                    Debug.print(debug_show arr);
+                    assertTrue(arr == ["three", "two", "one"]);
                 },
             ),
         ],
