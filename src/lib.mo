@@ -123,6 +123,7 @@ module {
             return ?node.val;
         };
 
+        /// Delete the value associated with a key from the cache.
         public func delete(key : K) = ignore remove(key);
 
         /// Get the most recently used item from the cache.
@@ -215,6 +216,7 @@ module {
             tail := null;
         };
 
+        /// Return an iterator over the cache's entries in order of most recently used.
         public func entries() : Iter<(K, V)> {
             var curr = head;
 
@@ -227,6 +229,7 @@ module {
             };
         };
 
+        /// Return an iterator over the cache's entries in order of least recently used.
         public func entriesRev() : Iter<(K, V)> {
             var curr = tail;
 
@@ -239,6 +242,7 @@ module {
             };
         };
 
+        /// Return an iterator over the cache's keys in order of most recently used.
         public func keys() : Iter<K> {
             Iter.map(
                 entries(),
@@ -246,6 +250,7 @@ module {
             );
         };
 
+        /// Return an iterator over the cache's values in order of most recently used.
         public func vals() : Iter<V> {
             Iter.map(
                 entries(),
