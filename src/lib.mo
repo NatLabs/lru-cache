@@ -216,6 +216,17 @@ module {
             tail := null;
         };
 
+        /// Make a copy of the cache.
+        public func clone() : LRUCache<K, V> {
+            let new_cache = LRUCache<K, V>(capacity(), hash, isEq);
+
+            for ((key, val) in entriesRev()){
+                new_cache.put(key, val);
+            };
+
+            new_cache
+        };
+
         /// Return an iterator over the cache's entries in order of most recently used.
         public func entries() : Iter<(K, V)> {
             var curr = head;
