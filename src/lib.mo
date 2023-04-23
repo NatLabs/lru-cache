@@ -5,12 +5,22 @@ import TrieMap "mo:base/TrieMap";
 
 module {
     private module Node = {
-        public class Node<K, V>(init_key : K, init_val : V) {
-            public var key : K = init_key;
-            public var val : V = init_val;
+        public type Node<K, V> = {
+            var key : K;
+            var val : V;
 
-            public var prev : ?Node<K, V> = null;
-            public var next : ?Node<K, V> = null;
+            var prev : ?Node<K, V>;
+            var next : ?Node<K, V>;
+        };
+
+        public func Node<K, V>(key : K, val : V) : Node<K, V> {
+           {
+                var key = key;
+                var val = val;
+                
+                var prev = null;
+                var next = null;
+            };
         };
 
         public func prepend<K, V>(ref : Node<K, V>, node : Node<K, V>) {
