@@ -1,7 +1,7 @@
 [dependencies]
 base = "0.8.1"
 map = "8.1.0"
-linked-list = "0.1.0"
+linked-list = "0.2.0"
 StableTrieMap = "https://github.com/NatLabs/StableTrieMap#main"
 
 [dev-dependencies]

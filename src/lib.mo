@@ -87,6 +87,13 @@ module {
             evictItemFn := ?fn;
         };
 
+        /// Get the value of a key and update its position in the cache.
+        public func get(key : K) : ?V = do ? {
+            let node = STM.get(map, isEq, hash, key)!;
+            moveToFront(node);
+            return ?node.data.val;
+        };
+
         /// Get the value of a key without updating its position in the cache.
         public func peek(key : K) : ?V = do ? {
             let node = STM.get(map, isEq, hash, key)!;
