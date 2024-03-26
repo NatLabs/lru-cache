@@ -1,8 +1,19 @@
+[package]
+name = "lru-cache"
+version = "0.0.1"
+description = "A Least Recently Used Cache implementation"
+repository = "https://github.com/NatLabs/lru-cache"
+keywords = [ "map", "linked-list", "fixed-size" ]
+
 [dependencies]
-base = "0.8.1"
-map = "8.1.0"
-linked-list = "0.2.0"
-StableTrieMap = "https://github.com/NatLabs/StableTrieMap#main"
+base = "0.11.1"
+map = "9.0.1"
+linked-list = "0.1.0"
 
 [dev-dependencies]
-test = "1.0.1"
+test = "1.2.0"
+bench = "1.0.0"
+
+[toolchain]
+wasmtime = "14.0.4"
+moc = "0.11.1"

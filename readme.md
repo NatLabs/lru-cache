@@ -1,26 +1,26 @@
 ## LRU Cache
 
-A Least Recently Used Cache
+A Least Recently Used Cache implementation
 
 ## Usage
 
 ```motoko
     import Text "mo:base/Text";
-    import LRUCache "mo:lru-cache";
+    import LruCache "mo:lru-cache";
 
-    stable let cache_ref = LRUCache.newStable<Text, Nat>(2);
+    let { thash } = LruCache; // import the hash function
 
-    let cache = LRUCache.fromStable(cache_ref, Text.hash, Text.equal);
+    // create a cache with a capacity of 2
+    stable let cache = LRUCache.new<Text, Nat>(2);
 
-    let heap_cache = LRUCache.newHeap<Text, Nat>(2, Text.hash, Text.equal);
+    LRUCache.put(cache, thash, "foo", 1);
+    LRUCache.put(cache, thash, "bar", 2);
+    LRUCache.put(cache, thash, "baz", 3);
 
-    cache.put("foo", 1);
-    cache.put("bar", 2);
-    cache.put("baz", 3);
-
-    assert cache.get("foo") == null;
-    assert cache.get("bar") == ?2;
-    assert cache.get("baz") == ?3;
+    assert LRUCache.get(cache, thash, "foo") == null;
+    assert LRUCache.get(cache, thash, "bar") == ?2;
+    assert LRUCache.get(cache, thash, "baz") == ?3;
 
 ```
-- The `stable_cache` and `heap_cache` have the same api. The only difference between them is after the `stable_cache` will be restored after a canister upgrade while the data in the `heap_cache` will be lost.
+
+The `LruCache` uses hash functions provided by the [`Map`](https://mops.one/map) library. The example above uses the `thash` (text hash) function. For other hash functions, see the [documentation](https://mops.one/map#composite-utils)

@@ -1,247 +1,226 @@
 import Debug "mo:base/Debug";
 import Iter "mo:base/Iter";
-import Option "mo:base/Option";
-import TrieMap "mo:base/TrieMap";
 
 import LinkedList "mo:linked-list";
-import STM "mo:StableTrieMap";
- 
+import Map "mo:map/Map";
+
 module {
     type LinkedList<A> = LinkedList.LinkedList<A>;
     type Node<A> = LinkedList.Node<A>;
-    type TrieMap<K, V> = TrieMap.TrieMap<K, V>;
+    type Map<K, V> = Map.Map<K, V>;
+    type HashUtils<K> = Map.HashUtils<K>;
     type Iter<A> = Iter.Iter<A>;
 
-    type Data<K, V> = {
-        key: K;
-        val: V;
-    };
+    public let {
+        ihash;
+        i8hash;
+        i16hash;
+        i32hash;
+        i64hash;
+        nhash;
+        n8hash;
+        n16hash;
+        n32hash;
+        n64hash;
+        thash;
+        phash;
+        bhash;
+        lhash;
+        hashInt;
+        hashInt8;
+        hashInt16;
+        hashInt32;
+        hashInt64;
+        hashNat;
+        hashNat8;
+        hashNat16;
+        hashNat32;
+        hashNat64;
+        combineHash;
+        useHash;
+        calcHash;
+    } = Map;
 
-    type STrieMap<K, V> = STM.StableTrieMap<K, V>;
+    type Data<K, V> = (K, V);
 
-    public type StableLRUCache<K, V> = {
-        map : STrieMap<K, Node<Data<K, V>>>;
+    public type LruCache<K, V> = {
+        map : Map<K, Node<Data<K, V>>>;
         list : LinkedList<Data<K, V>>;
-        _capacity: Nat;
+        var capacity : Nat;
     };
 
-    public func newStable<K, V>(capacity : Nat): StableLRUCache<K, V> {
+    public func new<K, V>(capacity : Nat) : LruCache<K, V> {
         return {
-            map =  STM.new();
+            map = Map.new();
             list = LinkedList.LinkedList();
-            _capacity =  capacity;
+            var capacity = capacity;
         };
     };
 
-    public func fromStable<K, V>(
-        stable_cache : StableLRUCache<K, V>,
-        hash : (K) -> Nat32,
-        isEq : (K, K) -> Bool,
-    ) : LRUCache<K, V> {
-        return LRUCache<K, V>(stable_cache, hash, isEq);
+    public func capacity<K, V>(self : LruCache<K, V>) : Nat {
+        return self.capacity;
     };
 
-    public func newHeap<K, V>(
-        capacity: Nat,
-        hash : (K) -> Nat32, 
-        isEq : (K, K) -> Bool
-    ) : LRUCache<K, V> {
-        let stable_cache = newStable<K, V>(capacity);
-        fromStable<K, V>(stable_cache, hash, isEq);
+    public func size<K, V>(self : LruCache<K, V>) : Nat {
+        return Map.size(self.map);
     };
 
-    public func cloneStable<K, V>(
-        stable_cache : StableLRUCache<K, V>,
-        hash: (K) -> Nat32,
-        isEq: (K, K) -> Bool,
-    ) : StableLRUCache<K, V> {
-        return {
-            map = STM.clone<K, Node<Data<K, V>>>(stable_cache.map, isEq, hash);
-            list = LinkedList.clone(stable_cache.list);
-            _capacity =  stable_cache._capacity;
+    func moveToFront<K, V>(self : LruCache<K, V>, node : Node<Data<K, V>>) {
+        LinkedList.remove_node(self.list, node);
+        LinkedList.prepend_node(self.list, node);
+    };
+
+    /// Get the value of a key and update its position in the cache.
+    public func get<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>, key : K) : ?V {
+        do ? {
+            let node = Map.get(self.map, hash_utils, key)!;
+            moveToFront(self, node);
+            return ?node.data.1;
         };
     };
 
-    /// A Least Recently Used (LRU) cache.
-    public class LRUCache<K, V>(
-        stable_cache : StableLRUCache<K, V>,
-        hash : (K) -> Nat32,
-        isEq : (K, K) -> Bool,
-    ) {
-
-        let { map; list; _capacity } = stable_cache;
-        
-        var evictItemFn : ?(((K, V)) -> ()) = null;
-
-        func moveToFront(node : Node<Data<K, V>>) {
-            LinkedList.remove_node(list, node);
-            LinkedList.prepend_node(list, node);
+    /// Get the value of a key without updating its position in the cache.
+    public func peek<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>, key : K) : ?V {
+        do ? {
+            let node = Map.get(self.map, hash_utils, key)!;
+            return ?node.data.1;
         };
+    };
 
-        public func size() : Nat = STM.size(map);
+    /// Remove the value associated with a key from the cache.
+    public func remove<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>, key : K) : ?V = do ? {
+        let node = Map.remove(self.map, hash_utils, key)!;
+        LinkedList.remove_node(self.list, node);
+        return ?node.data.1;
+    };
 
-        public func capacity() : Nat = _capacity;
+    /// Delete the value associated with a key from the cache.
+    public func delete<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>, key : K) {
+        ignore remove(self, hash_utils, key);
+    };
 
-        /// Set a function to be called when an item is evicted from the cache by a put or replace.
-        public func setOnEvict(fn : ((K, V)) -> ()) {
-            evictItemFn := ?fn;
+    /// Get the most recently used item from the cache.
+    public func first<K, V>(self : LruCache<K, V>) : ?(K, V) {
+        do ? {
+            let data = LinkedList.get_opt(self.list, 0)!;
+            return ?(data.0, data.1);
         };
+    };
 
-        /// Get the value of a key and update its position in the cache.
-        public func get(key : K) : ?V = do ? {
-            let node = STM.get(map, isEq, hash, key)!;
-            moveToFront(node);
-            return ?node.data.val;
+    /// Get the least recently used item from the cache.
+    public func last<K, V>(self : LruCache<K, V>) : ?(K, V) {
+        do ? {
+            let data = LinkedList.get_opt(self.list, LinkedList.size(self.list) - 1 : Nat)!;
+            return ?(data.0, data.1);
         };
+    };
 
-        /// Get the value of a key without updating its position in the cache.
-        public func peek(key : K) : ?V = do ? {
-            let node = STM.get(map, isEq, hash, key)!;
-            return ?node.data.val;
-        };
-
-        /// Remove the value associated with a key from the cache.
-        public func remove(key : K) : ?V = do ? {
-            let node = STM.remove(map,isEq, hash, key)!;
-            LinkedList.remove_node(list, node);
-            return ?node.data.val;
-        };
-
-        /// Delete the value associated with a key from the cache.
-        public func delete(key : K) = ignore remove(key);
-
-        /// Get the most recently used item from the cache.
-        public func first() : ?(K, V) = do ? {
-            let data = LinkedList.get_opt(list, 0)!;
-            return ?(data.key, data.val);
-        };
-
-        /// Get the least recently used item from the cache.
-        public func last() : ?(K, V) = do ? {
-            let data = LinkedList.get_opt(list, LinkedList.size(list) - 1 : Nat)!;
-            (data.key, data.val);
-        };
-
-        /// Pop the least recently used item from the cache.
-        public func pop() : ?(K, V) = do ? {
-            let popped_entry = last()!;
-            let node = STM.remove(map,isEq, hash, popped_entry.0)!;
-            LinkedList.remove_node(list, node);
+    /// Pop the least recently used item from the cache.
+    public func removeLast<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>) : ?(K, V) {
+        do ? {
+            let popped_entry = last(self)!;
+            let node = Map.remove(self.map, hash_utils, popped_entry.0)!;
+            LinkedList.remove_node(self.list, node);
             popped_entry;
         };
+    };
 
-        // Creates space in the cache for a new item.
-        func evictIfNeeded() : ?Node<Data<K, V>> {
-            if (STM.size(map) >= _capacity) {
-
-                let ?(last_key, _) = last() else return null;
-                let ?node = STM.remove(map,isEq, hash, last_key) else Debug.trap("LRUCache internal error: item in linked list not found in map");
-
-                LinkedList.remove_node(list, node);
-                ignore do ? {
-                    evictItemFn!((node.data.key, node.data.val));
-                };
-
-                ?node;
-            } else {
-                null;
-            };
+    /// Pop the most recently used item from the cache.
+    public func removeFirst<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>) : ?(K, V) {
+        do ? {
+            let popped_entry = first(self)!;
+            let node = Map.remove(self.map, hash_utils, popped_entry.0)!;
+            LinkedList.remove_node(self.list, node);
+            popped_entry;
         };
+    };
 
-        func createNode(key : K, val : V) : Node<Data<K, V>> {
-            switch (evictIfNeeded()) {
-                case (?popped_node) {
-                    popped_node.data := { key; val };
-                    popped_node;
-                };
-                case (null) {
-                    if (STM.size(map) >= _capacity ) {
-                        Debug.trap("LRUCache internal error: evictIfNeeded did not evict the expected item");
-                    };
+    // Creates space in the cache for a new item.
+    func evictIfNeeded<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>) : ?Node<Data<K, V>> {
+        if (Map.size(self.map) >= self.capacity) {
+            let ?(last_key, _) = last(self) else return null;
+            let ?node = Map.remove(self.map, hash_utils, last_key) else Debug.trap("LRUCache internal error: item in linked list not found in map");
 
-                    LinkedList.Node({key; val})
-                };
-            };
-        };
-
-        /// Replace the value associated with a key in the cache.
-        public func replace(key : K, val : V) : ?V {
-
-            if (_capacity == 0) return null;
-
-            switch (STM.get(map,isEq, hash, key)) {
-                case (?node) {
-                    let prev_val = ?node.data.val;
-                    node.data := { key; val };
-                    moveToFront(node);
-                    return prev_val;
-                };
-                case (null) {};
-            };
-
-            let node = createNode(key, val);
-            STM.put(map,isEq, hash, key, node);
-            LinkedList.prepend_node(list, node);
-
+            LinkedList.remove_node(self.list, node);
+            ?node;
+        } else {
             null;
         };
+    };
 
-        /// Add a key-value pair to the cache.
-        public func put(key : K, value : V) = ignore replace(key, value);
-
-        /// Check if a key is in the cache.
-        public func contains(key : K) : Bool = Option.isSome(STM.get(map,isEq, hash, key));
-
-        /// Clear the cache.
-        public func clear() {
-            STM.clear(map);
-            LinkedList.clear(list);
-        };
-
-        /// Make a copy of the cache.
-        public func clone() : (StableLRUCache<K, V>, LRUCache<K, V>) {
-            let stable_copy = cloneStable(stable_cache, hash, isEq);
-            let wrapper = fromStable(stable_copy, hash, isEq);
-            (stable_copy, wrapper)
-        };
-
-        /// Return an iterator over the cache's entries in order of most recently used.
-        public func entries() : Iter<(K, V)> {
-            Iter.map<Data<K, V>, (K, V)>(
-                LinkedList.vals(list),
-                func(data : Data<K, V>) : (K, V) = (data.key, data.val),
-            )
-        };
-
-        /// Return an iterator over the cache's entries in order of least recently used.
-        public func entriesRev() : Iter<(K, V)> {
-            var curr = list._tail;
-
-            object {
-                public func next() : ?(K, V) = do ? {
-                    let node = curr!;
-                    curr := node._prev;
-                    return ?(node.data.key, node.data.val);
-                };
+    func createNode<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>, key : K, val : V) : Node<Data<K, V>> {
+        switch (evictIfNeeded(self, hash_utils)) {
+            case (?popped_node) {
+                popped_node.data := (key, val);
+                popped_node;
+            };
+            case (null) {
+                LinkedList.Node((key, val));
             };
         };
+    };
 
-        /// Return an iterator over the cache's keys in order of most recently used.
-        public func keys() : Iter<K> {
-            Iter.map(
-                entries(),
-                func((key, _) : (K, V)) : K = key,
-            );
+    public func replace<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>, key : K, val : V) : ?V {
+        if (self.capacity == 0) return null;
+
+        switch (Map.get(self.map, hash_utils, key)) {
+            case (?node) {
+                let prev_val = ?node.data.1;
+                node.data := (key, val);
+                moveToFront(self, node);
+                return prev_val;
+            };
+            case (null) {};
         };
 
-        /// Return an iterator over the cache's values in order of most recently used.
-        public func vals() : Iter<V> {
-            Iter.map(
-                entries(),
-                func((_, val) : (K, V)) : V = val,
-            );
-        };
+        let node = createNode(self, hash_utils, key, val);
+        ignore Map.put(self.map, hash_utils, key, node);
+        LinkedList.prepend_node(self.list, node);
 
+        null;
+    };
+
+    public func put<K, V>(self : LruCache<K, V>, hash_utils : HashUtils<K>, key : K, val : V) {
+        ignore replace(self, hash_utils, key, val);
+    };
+
+    public func clear<K, V>(self : LruCache<K, V>) {
+        Map.clear(self.map);
+        LinkedList.clear(self.list);
+    };
+
+    public func clone<K, V>(self : LruCache<K, V>) : LruCache<K, V> {
+        let new_map = Map.clone(self.map);
+        let new_list = LinkedList.clone(self.list);
+
+        return {
+            map = new_map;
+            list = new_list;
+            var capacity = self.capacity;
+        };
+    };
+
+    public func entries<K, V>(self : LruCache<K, V>) : Iter<(K, V)> {
+        Iter.map<Data<K, V>, (K, V)>(
+            LinkedList.vals(self.list),
+            func(data : Data<K, V>) : (K, V) = (data.0, data.1),
+        );
+    };
+
+    /// Return an iterator over the cache's keys in order of most recently used.
+    public func keys<K, V>(self : LruCache<K, V>) : Iter<K> {
+        Iter.map(
+            entries(self),
+            func((key, _) : (K, V)) : K = key,
+        );
+    };
+
+    /// Return an iterator over the cache's values in order of most recently used.
+    public func vals<K, V>(self : LruCache<K, V>) : Iter<V> {
+        Iter.map(
+            entries(self),
+            func((_, val) : (K, V)) : V = val,
+        );
     };
 
 };

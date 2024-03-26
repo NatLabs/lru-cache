@@ -1,20 +1,18 @@
-name: Makefile CI
+name: Comment Benchmarks
 
-on: 
-  push:
-    branches:
-      - main
+on:
   pull_request:
     branches:
       - "*"
 
 jobs:
-  build:
+  benchmark:
     runs-on: ubuntu-latest
+    name: Run Benchmarks and Comment
 
-    name: Build and test
     steps:
       - uses: actions/checkout@v3
+
       - uses: actions/setup-node@v3
         with:
           node-version: 18
@@ -39,10 +37,10 @@ jobs:
         uses: dfinity/setup-dfx@main
       - name: Confirm successful installation
         run: dfx --version
-    
+
       - name: Install dfx cache
         run: dfx cache install
-
+        
       - name: Install mops & mocv
         run: |
           npm --yes -g i ic-mops
@@ -52,9 +50,26 @@ jobs:
 
           # set moc path for dfx to use
           echo "DFX_MOC_PATH=$(mops toolchain bin moc)" >> $GITHUB_ENV
-    
-      - name: Detect warnings
-        run: make check
+      
+      - name: Benchmarks
+        id: benchmarks
+        run: |
+          mops bench  --gc incremental 2>&1 | tee benchmark_results.txt
+          
+          # Process the output to remove everything up to the last occurrence of \033[2K
+          awk '/\x1b\[2K/ { buffer = "" } { buffer = buffer $0 "\n" } END { print buffer }' benchmark_results.txt > intermediate_results.txt
+          sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' intermediate_results.txt > processed_results.txt
 
-      - name: Run Tests
-        run: make test
+          # Set the processed output as an environment variable
+          echo "BENCHMARK_OUTPUT<<EOF" >> $GITHUB_ENV
+          cat processed_results.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: unsplash/comment-on-pr@v1.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          msg: "# Benchmark Results\n\n${{ env.BENCHMARK_OUTPUT }}\n"
+          check_for_duplicate_msg: false

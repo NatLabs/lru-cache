@@ -5,27 +5,31 @@ import Nat32 "mo:base/Nat32";
 import Nat "mo:base/Nat";
 
 import { test } "mo:test";
-import LRUCache "../src";
+import LruCache "../src";
+
+let { nhash } = LruCache;
 
 test(
     "create linked list",
     func() {
-        let cache = LRUCache.LRUCache<Nat, Text>(3, Nat32.fromNat, Nat.equal);
-        let evicted = Buffer.Buffer<(Nat, Text)>(1);
-        cache.setOnEvict(evicted.add);
+        let cache = LruCache.new<Nat, Text>(3);
 
-        assert cache.replace(1, "one") == null;
-        assert cache.replace(2, "two") == null;
-        assert cache.replace(3, "three") == null;
+        assert LruCache.replace(cache, nhash,1, "one") == null;
+        assert LruCache.replace(cache, nhash, 2, "two") == null;
+        assert LruCache.replace(cache, nhash, 3, "three") == null;
 
-        assert cache.replace(2, "TWO") == ?"two";
-        assert cache.replace(1, "ONE") == ?"one";
+        assert LruCache.first(cache, nhash) == ?(3, "three");
+        assert LruCache.last(cache, nhash) == ?(1, "one");
+        
+        assert LruCache.replace(cache, nhash, 2, "TWO") == ?"two";
+        assert LruCache.replace(cache, nhash, 1, "ONE") == ?"one";
 
-        cache.put(6, "six");
+        LruCache.put(cache, nhash, 6, "six");
 
-        let arr = Iter.toArray(cache.entries());
+        let arr = Iter.toArray(LruCache.entries(cache));
+        assert LruCache.first(cache, nhash) == ?(6, "six");
+        assert LruCache.last(cache, nhash) == ?(2, "TWO");
 
         assert arr == [(6, "six"), (1, "ONE"), (2, "TWO")];
-        assert Buffer.toArray(evicted) == [(3, "three")];
     },
 );
