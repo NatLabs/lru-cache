@@ -18,8 +18,8 @@ test(
         assert LruCache.replace(cache, nhash, 2, "two") == null;
         assert LruCache.replace(cache, nhash, 3, "three") == null;
 
-        assert LruCache.first(cache, nhash) == ?(3, "three");
-        assert LruCache.last(cache, nhash) == ?(1, "one");
+        assert LruCache.first(cache) == ?(3, "three");
+        assert LruCache.last(cache) == ?(1, "one");
         
         assert LruCache.replace(cache, nhash, 2, "TWO") == ?"two";
         assert LruCache.replace(cache, nhash, 1, "ONE") == ?"one";
@@ -27,8 +27,8 @@ test(
         LruCache.put(cache, nhash, 6, "six");
 
         let arr = Iter.toArray(LruCache.entries(cache));
-        assert LruCache.first(cache, nhash) == ?(6, "six");
-        assert LruCache.last(cache, nhash) == ?(2, "TWO");
+        assert LruCache.first(cache) == ?(6, "six");
+        assert LruCache.last(cache) == ?(2, "TWO");
 
         assert arr == [(6, "six"), (1, "ONE"), (2, "TWO")];
     },
