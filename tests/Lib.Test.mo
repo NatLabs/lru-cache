@@ -27,6 +27,7 @@ test(
         LruCache.put(cache, nhash, 6, "six");
 
         let arr = Iter.toArray(LruCache.entries(cache));
+        Debug.print("arr: " # debug_show arr);
         assert LruCache.first(cache) == ?(6, "six");
         assert LruCache.last(cache) == ?(2, "TWO");
 
