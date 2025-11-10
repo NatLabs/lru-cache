@@ -1,6 +1,5 @@
-import Iter "mo:base/Iter";
-import Debug "mo:base/Debug";
-import Buffer "mo:base/Buffer";
+import Runtime "mo:core@1.0.0/Runtime";
+import Nat "mo:core@1.0.0/Nat";
 
 import Bench "mo:bench";
 import Fuzz "mo:fuzz";
@@ -28,72 +27,72 @@ module {
         let fuzz = Fuzz.Fuzz();
         let limit = 10_000;
 
-        let buffer = Buffer.Buffer<(Nat, Nat)>(limit);
+        let list = List.empty<(Nat, Nat)>();
 
-        for (i in Iter.range(0, (limit * 3) - 1)) {
+        for (i in Nat.range(0, (limit * 3))) {
             let key = fuzz.nat.randomRange(0, limit ** 2);
             let val = fuzz.nat.randomRange(0, limit ** 3);
 
-            buffer.add((key, val));
+            List.add(list, (key, val));
         };
 
-        let { nhash } = LruCache;
+        let nhash = LruCache.defaultUtils(LruCache.nhash);
         let cache = LruCache.new<Nat, Nat>(limit);
 
         bench.runner(
             func(col, row) = switch (row, col) {
 
                 case ("LruCache", "put()") {
-                    for (i in Iter.range(0, limit - 1)) {
-                        let (key, val) = buffer.get(i); 
+                    for (i in Nat.range(0, limit)) {
+                        let (key, val) = List.at(list, i);
                         LruCache.put(cache, nhash, key, val);
                     };
                 };
 
                 case ("LruCache", "get()") {
-                    for (i in Iter.range(0, limit - 1)) {
-                        let (key, _) = buffer.get(i);
+                    for (i in Nat.range(0, limit)) {
+                        let (key, _) = List.at(list, i);
                         ignore LruCache.get(cache, nhash, key);
                     };
                 };
 
                 case ("LruCache", "peek()") {
-                    for (i in Iter.range(0, limit - 1)) {
-                        let (key, _) = buffer.get(i);
+                    for (i in Nat.range(0, limit)) {
+                        let (key, _) = List.at(list, i);
                         ignore LruCache.peek(cache, nhash, key);
                     };
                 };
 
                 case ("LruCache", "replace()") {
-                    for (i in Iter.range(0, limit - 1)) {
-                        let (key, val) = buffer.get(i);
+                    for (i in Nat.range(0, limit)) {
+                        let (key, val) = List.at(list, i);
                         LruCache.put(cache, nhash, key, val);
                     };
                 };
 
                 case ("LruCache", "put() over limit") {
-                    for (i in Iter.range(limit, (limit * 2) - 1)) {
-                        let (val, key) = buffer.get(i);
+                    for (i in Nat.range(limit, (limit * 2))) {
+                        let (val, key) = List.at(list, i);
                         LruCache.put(cache, nhash, key, val);
                     };
                 };
 
                 case ("LruCache", "put() over limit * 3") {
-                    for (i in Iter.range(0, (limit * 3) - 1)) {
-                        let (val, key) = buffer.get(i);
+                    for (i in Nat.range(0, (limit * 3))) {
+                        let (val, key) = List.at(list, i);
                         LruCache.put(cache, nhash, key, val);
                     };
                 };
 
                 case ("LruCache", "remove()") {
-                    for (i in Iter.range(0, limit - 1)) {
-                        let (key, _) = buffer.get(i);
+                    for (i in Nat.range(0, limit)) {
+                        let (key, _) = List.at(list, i);
                         ignore LruCache.remove(cache, nhash, key);
                     };
                 };
 
                 case (_) {
-                    Debug.trap("Should be unreachable:\n row = \"" # debug_show row # "\" and col = \"" # debug_show col # "\"");
+                    Runtime.trap("Should be unreachable:\n row = \"" # debug_show row # "\" and col = \"" # debug_show col # "\"");
                 };
             }
         );
