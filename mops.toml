@@ -1,6 +1,6 @@
 [package]
 name = "lru-cache"
-version = "1.0.0"
+version = "2.0.0"
 description = "A Least Recently Used Cache implementation"
 repository = "https://github.com/NatLabs/lru-cache"
 keywords = ["map", "linked-list", "fixed-size"]
